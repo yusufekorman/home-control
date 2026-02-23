@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}{{ device.name }} – Home Control{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-3 mb-2">
+  <a href="/devices" class="text-slate-500 hover:text-slate-300 text-sm">← Cihazlar</a>
+</div>
+
+<div class="flex items-start justify-between mb-8">
+  <div class="flex items-center gap-4">
+    <div class="w-12 h-12 rounded-xl {% if device.is_active %}bg-indigo-600/20{% else %}bg-slate-700/30{% endif %} flex items-center justify-center text-2xl">
+      {% if device.icon == 'light' %}💡{% elif device.icon == 'plug' %}🔌{% elif device.icon == 'thermostat' %}🌡️{% elif device.icon == 'camera' %}📷{% elif device.icon == 'lock' %}🔒{% else %}📡{% endif %}
+    </div>
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-semibold text-slate-100">{{ device.name }}</h1>
+        <span class="tag {% if device.is_active %}status-on{% else %}status-off{% endif %}">{{ 'Aktif' if device.is_active else 'Pasif' }}</span>
+      </div>
+      <p class="text-slate-500 text-sm mt-0.5">{{ device.base_url }} · {{ device.ip_address }}</p>
+    </div>
+  </div>
+  <button onclick="document.getElementById('editModal').classList.remove('hidden')"
+    class="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-slate-300 transition-colors">
+    Düzenle
+  </button>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+  <!-- Actions column -->
+  <div class="xl:col-span-2 space-y-6">
+
+    <!-- Actions list -->
+    <div class="card rounded-xl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-slate-200">Aksiyonlar</h2>
+        <button onclick="document.getElementById('actionModal').classList.remove('hidden')"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-xs text-indigo-300 transition-colors">
+          + Yeni Aksiyon
+        </button>
+      </div>
+
+      {% if device.actions %}
+      <div class="space-y-2">
+        {% for action in device.actions %}
+        <div class="flex items-center justify-between p-3 rounded-lg bg-white/3 border border-white/5 hover:border-white/10 group transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="tag bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs">{{ action.method }}</span>
+            <div>
+              <p class="text-sm text-slate-200 font-medium">{{ action.name }}</p>
+              <p class="text-xs text-slate-500 font-mono">{{ action.path }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <form method="post" action="/devices/{{ device.id }}/actions/{{ action.id }}/trigger">
+              <button type="submit"
+                class="px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 text-xs text-green-400 font-medium transition-colors">
+                ▶ Tetikle
+              </button>
+            </form>
+            <form method="post" action="/devices/{{ device.id }}/actions/{{ action.id }}/delete"
+              onsubmit="return confirm('Bu aksiyonu silmek istediğine emin misin?')">
+              <button type="submit" class="px-2 py-1.5 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-colors text-xs">✕</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-8">
+        <p class="text-slate-600 text-sm">Henüz aksiyon yok.</p>
+        <p class="text-xs text-slate-700 mt-1">Cihaza HTTP istekleri göndermek için aksiyon ekle.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Info -->
+    <div class="card rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-slate-200 mb-4">Cihaz Bilgileri</h2>
+      <div class="grid grid-cols-2 gap-3 text-xs">
+        <div>
+          <p class="text-slate-500">IP Adresi</p>
+          <p class="text-slate-300 font-mono mt-0.5">{{ device.ip_address }}</p>
+        </div>
+        <div>
+          <p class="text-slate-500">Base URL</p>
+          <p class="text-slate-300 font-mono mt-0.5">{{ device.base_url }}</p>
+        </div>
+        {% if device.auth_header_name %}
+        <div>
+          <p class="text-slate-500">Auth Header</p>
+          <p class="text-slate-300 font-mono mt-0.5">{{ device.auth_header_name }}: ••••••</p>
+        </div>
+        {% endif %}
+        <div>
+          <p class="text-slate-500">Oluşturulma</p>
+          <p class="text-slate-300 mt-0.5">{{ device.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+        </div>
+        {% if device.description %}
+        <div class="col-span-2">
+          <p class="text-slate-500">Açıklama</p>
+          <p class="text-slate-300 mt-0.5">{{ device.description }}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs -->
+  <div>
+    <div class="card rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-slate-200 mb-4">Son Loglar</h2>
+      {% if logs %}
+      <div class="space-y-2 max-h-[500px] overflow-y-auto">
+        {% for log in logs %}
+        <div class="p-3 rounded-lg bg-white/3 border border-white/5 text-xs">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-medium text-slate-300">{{ log.action_name or 'Bilinmiyor' }}</span>
+            {% if log.error %}
+              <span class="tag status-off">HATA</span>
+            {% elif log.status_code and log.status_code < 300 %}
+              <span class="tag status-on">{{ log.status_code }}</span>
+            {% elif log.status_code %}
+              <span class="tag status-off">{{ log.status_code }}</span>
+            {% endif %}
+          </div>
+          <div class="flex items-center justify-between text-slate-600">
+            <span>{{ log.triggered_by }}</span>
+            <span>{{ log.created_at.strftime('%d.%m %H:%M:%S') }}</span>
+          </div>
+          {% if log.error %}
+          <p class="text-red-400 mt-1 font-mono text-xs break-all">{{ log.error[:100] }}</p>
+          {% elif log.response_body %}
+          <p class="text-slate-500 mt-1 font-mono text-xs truncate">{{ log.response_body[:80] }}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-slate-600 text-xs text-center py-6">Henüz log yok.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="card rounded-2xl w-full max-w-lg p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-base font-semibold text-slate-100">Cihazı Düzenle</h2>
+      <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-slate-500 hover:text-slate-300">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/devices/{{ device.id }}/edit" class="flex flex-col gap-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Cihaz Adı</label>
+          <input name="name" value="{{ device.name }}" required class="input w-full px-3 py-2 rounded-lg text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">İkon</label>
+          <select name="icon" class="input w-full px-3 py-2 rounded-lg text-sm">
+            <option value="device" {% if device.icon == 'device' %}selected{% endif %}>📡 Genel</option>
+            <option value="light" {% if device.icon == 'light' %}selected{% endif %}>💡 Lamba</option>
+            <option value="plug" {% if device.icon == 'plug' %}selected{% endif %}>🔌 Priz</option>
+            <option value="thermostat" {% if device.icon == 'thermostat' %}selected{% endif %}>🌡️ Termostat</option>
+            <option value="camera" {% if device.icon == 'camera' %}selected{% endif %}>📷 Kamera</option>
+            <option value="lock" {% if device.icon == 'lock' %}selected{% endif %}>🔒 Kilit</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">IP Adresi</label>
+        <input name="ip_address" value="{{ device.ip_address }}" required class="input w-full px-3 py-2 rounded-lg text-sm" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Base URL</label>
+        <input name="base_url" value="{{ device.base_url }}" required class="input w-full px-3 py-2 rounded-lg text-sm" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Açıklama</label>
+        <input name="description" value="{{ device.description }}" class="input w-full px-3 py-2 rounded-lg text-sm" />
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Auth Header Adı</label>
+          <input name="auth_header_name" value="{{ device.auth_header_name or '' }}" class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Authorization" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Auth Header Değeri</label>
+          <input name="auth_header_value" value="{{ device.auth_header_value or '' }}" class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Bearer ..." />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-2">
+        <button type="button" onclick="document.getElementById('editModal').classList.add('hidden')"
+          class="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-sm transition-colors">İptal</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Action Modal -->
+<div id="actionModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="card rounded-2xl w-full max-w-lg p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-base font-semibold text-slate-100">Yeni Aksiyon Ekle</h2>
+      <button onclick="document.getElementById('actionModal').classList.add('hidden')" class="text-slate-500 hover:text-slate-300">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/devices/{{ device.id }}/actions/add" class="flex flex-col gap-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Aksiyon Adı *</label>
+          <input name="name" required class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Aç / Kapat" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">HTTP Metodu</label>
+          <select name="method" class="input w-full px-3 py-2 rounded-lg text-sm">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Path *</label>
+        <input name="path" required class="input w-full px-3 py-2 rounded-lg text-sm font-mono" placeholder="/api/relay/toggle" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Açıklama</label>
+        <input name="description" class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Opsiyonel" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Request Body (JSON)</label>
+        <textarea name="body" rows="2" class="input w-full px-3 py-2 rounded-lg text-sm font-mono resize-none" placeholder='{"state": true}'></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Ekstra Headerlar (JSON)</label>
+        <textarea name="extra_headers" rows="2" class="input w-full px-3 py-2 rounded-lg text-sm font-mono resize-none" placeholder='{"Content-Type": "application/json"}'></textarea>
+      </div>
+      <div class="flex justify-end gap-2 mt-2">
+        <button type="button" onclick="document.getElementById('actionModal').classList.add('hidden')"
+          class="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-sm transition-colors">İptal</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">Ekle</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

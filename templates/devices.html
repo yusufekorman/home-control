@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Cihazlar – Home Control{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-100">Cihazlar</h1>
+    <p class="text-slate-500 text-sm mt-1">{{ devices|length }} cihaz kayıtlı</p>
+  </div>
+  <button onclick="document.getElementById('addModal').classList.remove('hidden')"
+    class="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Cihaz Ekle
+  </button>
+</div>
+
+{% if devices %}
+<div class="grid grid-cols-1 gap-4">
+  {% for device in devices %}
+  <div class="card rounded-xl p-5">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-lg {% if device.is_active %}bg-indigo-600/20{% else %}bg-slate-700/30{% endif %} flex items-center justify-center text-xl">
+          {% if device.icon == 'light' %}💡{% elif device.icon == 'plug' %}🔌{% elif device.icon == 'thermostat' %}🌡️{% elif device.icon == 'camera' %}📷{% elif device.icon == 'lock' %}🔒{% else %}📡{% endif %}
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <p class="font-medium text-slate-100">{{ device.name }}</p>
+            <span class="tag {% if device.is_active %}status-on{% else %}status-off{% endif %}">{{ 'Aktif' if device.is_active else 'Pasif' }}</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5">{{ device.base_url }} · {{ device.actions|length }} action</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="/devices/{{ device.id }}"
+          class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-300 transition-colors">
+          Detaylar
+        </a>
+        <form method="post" action="/devices/{{ device.id }}/toggle">
+          <button type="submit" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-300 transition-colors">
+            {{ 'Devre Dışı' if device.is_active else 'Etkinleştir' }}
+          </button>
+        </form>
+        <form method="post" action="/devices/{{ device.id }}/delete" onsubmit="return confirm('Cihazı silmek istediğine emin misin?')">
+          <button type="submit" class="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs text-red-400 transition-colors">
+            Sil
+          </button>
+        </form>
+      </div>
+    </div>
+    {% if device.description %}
+    <p class="text-xs text-slate-500 mt-3 ml-14">{{ device.description }}</p>
+    {% endif %}
+    {% if device.auth_header_name %}
+    <p class="text-xs text-slate-600 mt-1 ml-14">🔑 Auth: {{ device.auth_header_name }}: ••••••</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card rounded-xl p-16 text-center">
+  <p class="text-4xl mb-3">📡</p>
+  <p class="text-slate-400 mb-2">Henüz cihaz yok.</p>
+  <p class="text-xs text-slate-600 mb-6">Akıllı ev cihazlarını buradan yönetebilirsin.</p>
+  <button onclick="document.getElementById('addModal').classList.remove('hidden')"
+    class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">
+    İlk Cihazı Ekle
+  </button>
+</div>
+{% endif %}
+
+<!-- Add Device Modal -->
+<div id="addModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="card rounded-2xl w-full max-w-lg p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-base font-semibold text-slate-100">Yeni Cihaz Ekle</h2>
+      <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-slate-500 hover:text-slate-300">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/devices/add" class="flex flex-col gap-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Cihaz Adı *</label>
+          <input name="name" required class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Oturma Odası Lambası" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">İkon</label>
+          <select name="icon" class="input w-full px-3 py-2 rounded-lg text-sm">
+            <option value="device">📡 Genel</option>
+            <option value="light">💡 Lamba</option>
+            <option value="plug">🔌 Priz</option>
+            <option value="thermostat">🌡️ Termostat</option>
+            <option value="camera">📷 Kamera</option>
+            <option value="lock">🔒 Kilit</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">IP Adresi *</label>
+        <input name="ip_address" required class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="192.168.1.100" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Base URL *</label>
+        <input name="base_url" required class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="http://192.168.1.100:80" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Açıklama</label>
+        <input name="description" class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Opsiyonel açıklama" />
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Auth Header Adı</label>
+          <input name="auth_header_name" class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Authorization" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Auth Header Değeri</label>
+          <input name="auth_header_value" class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="Bearer token123" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-2">
+        <button type="button" onclick="document.getElementById('addModal').classList.add('hidden')"
+          class="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-sm transition-colors">İptal</button>
+        <button type="submit"
+          class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">Ekle</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

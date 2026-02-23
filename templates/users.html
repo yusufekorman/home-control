@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Kullanıcılar – Home Control{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-100">Kullanıcılar</h1>
+    <p class="text-slate-500 text-sm mt-1">{{ users|length }} kullanıcı kayıtlı</p>
+  </div>
+  <button onclick="document.getElementById('addModal').classList.remove('hidden')"
+    class="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Kullanıcı Ekle
+  </button>
+</div>
+
+<div class="card rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-white/5 text-slate-500 text-xs">
+        <th class="text-left px-4 py-3 font-medium">Kullanıcı</th>
+        <th class="text-left px-4 py-3 font-medium">Rol</th>
+        <th class="text-left px-4 py-3 font-medium">Oluşturulma</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="border-b border-white/5 last:border-0 hover:bg-white/2">
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 rounded-full bg-indigo-600/40 flex items-center justify-center text-xs font-bold text-indigo-300">
+              {{ u.username[0].upper() }}
+            </div>
+            <span class="text-slate-200 font-medium">{{ u.username }}</span>
+            {% if u.id == user.id %}<span class="tag bg-slate-500/10 text-slate-400 border border-slate-500/20 text-xs">Sen</span>{% endif %}
+          </div>
+        </td>
+        <td class="px-4 py-3">
+          <span class="tag {% if u.is_admin %}bg-indigo-500/10 text-indigo-400 border border-indigo-500/20{% else %}bg-slate-500/10 text-slate-400 border border-slate-500/20{% endif %}">
+            {{ 'Admin' if u.is_admin else 'Kullanıcı' }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-slate-500 text-xs">{{ u.created_at.strftime('%d.%m.%Y') }}</td>
+        <td class="px-4 py-3 text-right">
+          {% if u.id != user.id %}
+          <form method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('Bu kullanıcıyı silmek istediğine emin misin?')">
+            <button type="submit" class="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs text-red-400 transition-colors">Sil</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Modal -->
+<div id="addModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="card rounded-2xl w-full max-w-sm p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-base font-semibold text-slate-100">Yeni Kullanıcı</h2>
+      <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-slate-500 hover:text-slate-300">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form method="post" action="/users/add" class="flex flex-col gap-4">
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Kullanıcı Adı</label>
+        <input name="username" required class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="kullanici_adi" />
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1.5">Şifre</label>
+        <input name="password" type="password" required class="input w-full px-3 py-2 rounded-lg text-sm" placeholder="••••••••" />
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" name="is_admin" id="is_admin" value="true" class="rounded" />
+        <label for="is_admin" class="text-sm text-slate-400">Admin yetkisi ver</label>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="document.getElementById('addModal').classList.add('hidden')"
+          class="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-sm transition-colors">İptal</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">Ekle</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
