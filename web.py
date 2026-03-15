@@ -1,5 +1,6 @@
 import json
 import os
+import inspect
 from datetime import datetime
 from typing import Optional
 
@@ -63,6 +64,12 @@ def _parse_authentication_credential(payload: dict):
     return AuthenticationCredential.parse_obj(payload)
 
 
+def _call_with_supported_kwargs(func, **kwargs):
+    sig = inspect.signature(func)
+    allowed = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    return func(**allowed)
+
+
 # ─── Session helpers ───────────────────────────────────────────────────────────
 
 def get_current_user(request: Request, db: Session) -> Optional[User]:
@@ -122,7 +129,8 @@ async def passkey_register_begin(request: Request, db: Session = Depends(get_db)
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
     rp_id = _rp_id_from_request(request)
-    options = generate_registration_options(
+    options = _call_with_supported_kwargs(
+        generate_registration_options,
         rp_id=rp_id,
         rp_name="Home Control",
         user_id=str(user.id).encode("utf-8"),
@@ -151,7 +159,8 @@ async def passkey_register_finish(request: Request, db: Session = Depends(get_db
     payload = await request.json()
     try:
         credential = _parse_registration_credential(payload)
-        verification = verify_registration_response(
+        verification = _call_with_supported_kwargs(
+            verify_registration_response,
             credential=credential,
             expected_challenge=challenge,
             expected_rp_id=_rp_id_from_request(request),
@@ -185,7 +194,8 @@ async def passkey_register_finish(request: Request, db: Session = Depends(get_db
 @router.post("/auth/passkey/login/begin")
 async def passkey_login_begin(request: Request):
     rp_id = _rp_id_from_request(request)
-    options = generate_authentication_options(
+    options = _call_with_supported_kwargs(
+        generate_authentication_options,
         rp_id=rp_id,
         user_verification=UserVerificationRequirement.REQUIRED,
     )
@@ -207,7 +217,8 @@ async def passkey_login_finish(request: Request, db: Session = Depends(get_db)):
 
     try:
         credential = _parse_authentication_credential(payload)
-        verification = verify_authentication_response(
+        verification = _call_with_supported_kwargs(
+            verify_authentication_response,
             credential=credential,
             expected_challenge=challenge,
             expected_rp_id=_rp_id_from_request(request),
