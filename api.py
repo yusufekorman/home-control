@@ -1,8 +1,11 @@
 import json
+import ipaddress
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 import httpx
+from urllib.parse import urlparse
+from pydantic import BaseModel
 
 from database import get_db
 from models import (
@@ -14,6 +17,21 @@ from models import (
 from auth import validate_api_key, generate_api_key
 
 router = APIRouter(tags=["REST API"])
+ping_router = APIRouter(tags=["Device Ping"])
+
+
+class DevicePingPayload(BaseModel):
+    device: str
+    ip: str
+
+
+def _build_base_url_from_ip(current_base_url: str, ip: str) -> str:
+    parsed = urlparse(current_base_url or "")
+    scheme = parsed.scheme or "http"
+    host = ip
+    if parsed.port:
+        host = f"{ip}:{parsed.port}"
+    return f"{scheme}://{host}"
 
 
 # ─── API Key dependency ────────────────────────────────────────────────────────
@@ -34,6 +52,72 @@ def get_api_key(
             detail="Invalid or inactive API key",
         )
     return key
+
+
+@ping_router.post("/ping", summary="Device ping with bearer security code")
+def device_ping(
+    payload: DevicePingPayload,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization Bearer token missing",
+        )
+
+    token = authorization[len("Bearer "):].strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token is empty",
+        )
+
+    try:
+        normalized_ip = str(ipaddress.ip_address(payload.ip.strip()))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid IP address",
+        )
+
+    device = None
+    if payload.device.isdigit():
+        device = db.query(Device).filter(Device.id == int(payload.device)).first()
+    if not device:
+        device = db.query(Device).filter(Device.name == payload.device).first()
+
+    if not device:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+
+    previous_token = device.auth_header_value
+    device.auth_header_value = token
+    device.ip_address = normalized_ip
+    device.base_url = _build_base_url_from_ip(device.base_url, normalized_ip)
+    device.is_active = True
+
+    db.add(
+        DeviceLog(
+            device_id=device.id,
+            action_name="device_ping",
+            status_code=200,
+            response_body=(
+                f"IP updated to {normalized_ip}; token_rotated={previous_token != token}"
+            ),
+            triggered_by="ping",
+        )
+    )
+    db.commit()
+    db.refresh(device)
+
+    return {
+        "success": True,
+        "device_id": device.id,
+        "device_name": device.name,
+        "ip_address": device.ip_address,
+        "base_url": device.base_url,
+        "updated": True,
+    }
 
 
 # ─── API Keys ─────────────────────────────────────────────────────────────────

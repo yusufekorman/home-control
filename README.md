@@ -41,6 +41,8 @@ Sunucu `http://localhost:8000` adresinde başlar.
 
 Tüm endpoint'ler `X-API-Key` header gerektirir.
 
+İstisna: `POST /api/ping` endpoint'i cihaz tarafından çağrılır ve `Authorization: Bearer <device_security_code>` ister.
+
 ```bash
 # Cihazları listele
 curl -H "X-API-Key: hck_..." http://localhost:8000/api/v1/devices
@@ -54,22 +56,41 @@ Tam dokümantasyon: `http://localhost:8000/api/docs`
 
 ### Endpoint Özeti
 
-| Method | Path                                         | Açıklama            |
-| ------ | -------------------------------------------- | ------------------- |
-| GET    | `/api/v1/devices`                            | Cihaz listesi       |
-| POST   | `/api/v1/devices`                            | Cihaz oluştur       |
-| GET    | `/api/v1/devices/{id}`                       | Cihaz detayı        |
-| PUT    | `/api/v1/devices/{id}`                       | Cihaz güncelle      |
-| DELETE | `/api/v1/devices/{id}`                       | Cihaz sil           |
-| GET    | `/api/v1/devices/{id}/actions`               | Aksiyonlar          |
-| POST   | `/api/v1/devices/{id}/actions`               | Aksiyon ekle        |
-| DELETE | `/api/v1/devices/{id}/actions/{aid}`         | Aksiyon sil         |
-| POST   | `/api/v1/devices/{id}/actions/{aid}/trigger` | **Tetikle**         |
-| GET    | `/api/v1/devices/{id}/logs`                  | Cihaz logları       |
-| GET    | `/api/v1/logs`                               | Tüm loglar          |
-| GET    | `/api/v1/apikeys`                            | API anahtar listesi |
-| POST   | `/api/v1/apikeys`                            | Anahtar oluştur     |
-| DELETE | `/api/v1/apikeys/{id}`                       | Anahtar sil         |
+| Method | Path                                         | Açıklama                 |
+| ------ | -------------------------------------------- | ------------------------ |
+| GET    | `/api/v1/devices`                            | Cihaz listesi            |
+| POST   | `/api/v1/devices`                            | Cihaz oluştur            |
+| GET    | `/api/v1/devices/{id}`                       | Cihaz detayı             |
+| PUT    | `/api/v1/devices/{id}`                       | Cihaz güncelle           |
+| DELETE | `/api/v1/devices/{id}`                       | Cihaz sil                |
+| GET    | `/api/v1/devices/{id}/actions`               | Aksiyonlar               |
+| POST   | `/api/v1/devices/{id}/actions`               | Aksiyon ekle             |
+| DELETE | `/api/v1/devices/{id}/actions/{aid}`         | Aksiyon sil              |
+| POST   | `/api/v1/devices/{id}/actions/{aid}/trigger` | **Tetikle**              |
+| GET    | `/api/v1/devices/{id}/logs`                  | Cihaz logları            |
+| GET    | `/api/v1/logs`                               | Tüm loglar               |
+| GET    | `/api/v1/apikeys`                            | API anahtar listesi      |
+| POST   | `/api/v1/apikeys`                            | Anahtar oluştur          |
+| DELETE | `/api/v1/apikeys/{id}`                       | Anahtar sil              |
+| POST   | `/api/ping`                                  | Cihaz ping + IP güncelle |
+
+### Cihaz Ping Endpoint
+
+ESP8266 gibi cihazlar açılışta kendi IP adresini sunucuya bildirebilir:
+
+```bash
+curl -X POST http://localhost:8000/api/ping \
+  -H "Authorization: Bearer <device_security_code>" \
+  -H "Content-Type: application/json" \
+  -d '{"device":"desk_lamp","ip":"192.168.1.44"}'
+```
+
+- `device`: cihaz adı (`name`) veya sayısal cihaz id
+- `ip`: cihazın güncel IP adresi
+- Bearer token: cihazın yeni güvenlik kodu olarak kaydedilir (`auth_header_value` güncellenir)
+
+Doğrulama başarılıysa cihazın `ip_address` ve `base_url` alanları otomatik güncellenir.
+Ek olarak gönderilen Bearer token eski güvenlik kodunun yerine yazılır.
 
 ## MCP Server
 
