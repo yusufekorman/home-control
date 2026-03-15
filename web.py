@@ -55,13 +55,25 @@ def _load_challenge(request: Request, key: str) -> Optional[bytes]:
 def _parse_registration_credential(payload: dict):
     if hasattr(RegistrationCredential, "model_validate"):
         return RegistrationCredential.model_validate(payload)
-    return RegistrationCredential.parse_obj(payload)
+    if hasattr(RegistrationCredential, "parse_obj"):
+        return RegistrationCredential.parse_obj(payload)
+    if hasattr(RegistrationCredential, "parse_raw"):
+        return RegistrationCredential.parse_raw(json.dumps(payload))
+    if hasattr(RegistrationCredential, "from_dict"):
+        return RegistrationCredential.from_dict(payload)
+    return RegistrationCredential(**payload)
 
 
 def _parse_authentication_credential(payload: dict):
     if hasattr(AuthenticationCredential, "model_validate"):
         return AuthenticationCredential.model_validate(payload)
-    return AuthenticationCredential.parse_obj(payload)
+    if hasattr(AuthenticationCredential, "parse_obj"):
+        return AuthenticationCredential.parse_obj(payload)
+    if hasattr(AuthenticationCredential, "parse_raw"):
+        return AuthenticationCredential.parse_raw(json.dumps(payload))
+    if hasattr(AuthenticationCredential, "from_dict"):
+        return AuthenticationCredential.from_dict(payload)
+    return AuthenticationCredential(**payload)
 
 
 def _call_with_supported_kwargs(func, **kwargs):
