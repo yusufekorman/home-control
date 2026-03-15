@@ -15,10 +15,12 @@ from webauthn import (
     verify_registration_response,
 )
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url, options_to_json
+from webauthn.helpers import (
+    parse_registration_credential_json,
+    parse_authentication_credential_json,
+)
 from webauthn.helpers.structs import (
-    AuthenticationCredential,
     AuthenticatorSelectionCriteria,
-    RegistrationCredential,
     ResidentKeyRequirement,
     UserVerificationRequirement,
 )
@@ -52,61 +54,10 @@ def _load_challenge(request: Request, key: str) -> Optional[bytes]:
     return base64url_to_bytes(encoded)
 
 
-def _normalize_webauthn_payload(value):
-    key_map = {
-        "rawId": "raw_id",
-        "clientDataJSON": "client_data_json",
-        "attestationObject": "attestation_object",
-        "authenticatorData": "authenticator_data",
-        "userHandle": "user_handle",
-        "clientExtensionResults": "client_extension_results",
-    }
-    if isinstance(value, dict):
-        normalized = {}
-        for k, v in value.items():
-            normalized[key_map.get(k, k)] = _normalize_webauthn_payload(v)
-        return normalized
-    if isinstance(value, list):
-        return [_normalize_webauthn_payload(item) for item in value]
-    return value
-
-
-def _parse_registration_credential(payload: dict):
-    payload = _normalize_webauthn_payload(payload)
-    if hasattr(RegistrationCredential, "model_validate"):
-        return RegistrationCredential.model_validate(payload)
-    if hasattr(RegistrationCredential, "parse_obj"):
-        return RegistrationCredential.parse_obj(payload)
-    if hasattr(RegistrationCredential, "parse_raw"):
-        return RegistrationCredential.parse_raw(json.dumps(payload))
-    if hasattr(RegistrationCredential, "from_dict"):
-        return RegistrationCredential.from_dict(payload)
-    return _instantiate_with_supported_kwargs(RegistrationCredential, payload)
-
-
-def _parse_authentication_credential(payload: dict):
-    payload = _normalize_webauthn_payload(payload)
-    if hasattr(AuthenticationCredential, "model_validate"):
-        return AuthenticationCredential.model_validate(payload)
-    if hasattr(AuthenticationCredential, "parse_obj"):
-        return AuthenticationCredential.parse_obj(payload)
-    if hasattr(AuthenticationCredential, "parse_raw"):
-        return AuthenticationCredential.parse_raw(json.dumps(payload))
-    if hasattr(AuthenticationCredential, "from_dict"):
-        return AuthenticationCredential.from_dict(payload)
-    return _instantiate_with_supported_kwargs(AuthenticationCredential, payload)
-
-
 def _call_with_supported_kwargs(func, **kwargs):
     sig = inspect.signature(func)
     allowed = {k: v for k, v in kwargs.items() if k in sig.parameters}
     return func(**allowed)
-
-
-def _instantiate_with_supported_kwargs(cls, payload: dict):
-    sig = inspect.signature(cls)
-    accepted = {k: v for k, v in payload.items() if k in sig.parameters}
-    return cls(**accepted)
 
 
 # ─── Session helpers ───────────────────────────────────────────────────────────
@@ -197,7 +148,7 @@ async def passkey_register_finish(request: Request, db: Session = Depends(get_db
 
     payload = await request.json()
     try:
-        credential = _parse_registration_credential(payload)
+        credential = parse_registration_credential_json(payload)
         verification = _call_with_supported_kwargs(
             verify_registration_response,
             credential=credential,
@@ -255,7 +206,7 @@ async def passkey_login_finish(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"error": "Passkey not found"}, status_code=401)
 
     try:
-        credential = _parse_authentication_credential(payload)
+        credential = parse_authentication_credential_json(payload)
         verification = _call_with_supported_kwargs(
             verify_authentication_response,
             credential=credential,
