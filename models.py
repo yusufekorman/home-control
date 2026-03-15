@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Enum, LargeBinary
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel
 import enum
@@ -29,6 +29,23 @@ class User(Base):
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    passkeys = relationship("UserPasskey", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserPasskey(Base):
+    __tablename__ = "user_passkeys"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(128), nullable=False, default="My Passkey")
+    credential_id = Column(LargeBinary, nullable=False, unique=True)
+    credential_public_key = Column(LargeBinary, nullable=False)
+    sign_count = Column(Integer, nullable=False, default=0)
+    transports = Column(String(128), nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="passkeys")
 
 
 class Device(Base):

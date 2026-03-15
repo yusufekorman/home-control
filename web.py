@@ -1,15 +1,66 @@
+import json
+import os
+from datetime import datetime
 from typing import Optional
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from webauthn import (
+    generate_authentication_options,
+    generate_registration_options,
+    verify_authentication_response,
+    verify_registration_response,
+)
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url, options_to_json
+from webauthn.helpers.structs import (
+    AuthenticationCredential,
+    AuthenticatorSelectionCriteria,
+    RegistrationCredential,
+    ResidentKeyRequirement,
+    UserVerificationRequirement,
+)
 
 from database import get_db
-from models import User, Device, DeviceAction, DeviceLog, ApiKey
-from auth import authenticate_user, get_password_hash, generate_api_key
+from models import ApiKey, Device, DeviceAction, DeviceLog, User, UserPasskey
+from auth import authenticate_user, generate_api_key, get_password_hash
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="templates")
+
+
+# ─── Passkey helpers ───────────────────────────────────────────────────────────
+
+def _rp_id_from_request(request: Request) -> str:
+    return os.environ.get("WEBAUTHN_RP_ID") or request.url.hostname or "localhost"
+
+
+def _origin_from_request(request: Request) -> str:
+    return os.environ.get("WEBAUTHN_ORIGIN") or f"{request.url.scheme}://{request.url.netloc}"
+
+
+def _store_challenge(request: Request, key: str, challenge: bytes) -> None:
+    request.session[key] = bytes_to_base64url(challenge)
+
+
+def _load_challenge(request: Request, key: str) -> Optional[bytes]:
+    encoded = request.session.pop(key, None)
+    if not encoded:
+        return None
+    return base64url_to_bytes(encoded)
+
+
+def _parse_registration_credential(payload: dict):
+    if hasattr(RegistrationCredential, "model_validate"):
+        return RegistrationCredential.model_validate(payload)
+    return RegistrationCredential.parse_obj(payload)
+
+
+def _parse_authentication_credential(payload: dict):
+    if hasattr(AuthenticationCredential, "model_validate"):
+        return AuthenticationCredential.model_validate(payload)
+    return AuthenticationCredential.parse_obj(payload)
 
 
 # ─── Session helpers ───────────────────────────────────────────────────────────
@@ -31,10 +82,14 @@ def require_user(request: Request, db: Session = Depends(get_db)) -> User:
 # ─── Auth ──────────────────────────────────────────────────────────────────────
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
+async def login_page(request: Request, db: Session = Depends(get_db)):
     if request.session.get("user_id"):
         return RedirectResponse("/", status_code=302)
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    has_passkeys = db.query(UserPasskey.id).first() is not None
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": None, "has_passkeys": has_passkeys},
+    )
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -46,11 +101,150 @@ async def login_post(
 ):
     user = authenticate_user(db, username, password)
     if not user:
+        has_passkeys = db.query(UserPasskey.id).first() is not None
         return templates.TemplateResponse(
-            "login.html", {"request": request, "error": "Geçersiz kullanıcı adı veya şifre."}
+            "login.html",
+            {
+                "request": request,
+                "error": "Geçersiz kullanıcı adı veya şifre.",
+                "has_passkeys": has_passkeys,
+            },
         )
     request.session["user_id"] = user.id
     request.session["username"] = user.username
+    return RedirectResponse("/", status_code=302)
+
+
+@router.post("/auth/passkey/register/begin")
+async def passkey_register_begin(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    rp_id = _rp_id_from_request(request)
+    options = generate_registration_options(
+        rp_id=rp_id,
+        rp_name="Home Control",
+        user_id=str(user.id).encode("utf-8"),
+        user_name=user.username,
+        user_display_name=user.username,
+        user_verification=UserVerificationRequirement.REQUIRED,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.REQUIRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
+        ),
+    )
+    _store_challenge(request, "passkey_register_challenge", options.challenge)
+    return JSONResponse(json.loads(options_to_json(options)))
+
+
+@router.post("/auth/passkey/register/finish")
+async def passkey_register_finish(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    challenge = _load_challenge(request, "passkey_register_challenge")
+    if not challenge:
+        return JSONResponse({"error": "Challenge expired"}, status_code=400)
+
+    payload = await request.json()
+    try:
+        credential = _parse_registration_credential(payload)
+        verification = verify_registration_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=_rp_id_from_request(request),
+            expected_origin=_origin_from_request(request),
+            require_user_verification=True,
+        )
+    except Exception as exc:
+        return JSONResponse({"error": f"Registration failed: {exc}"}, status_code=400)
+
+    existing = db.query(UserPasskey).filter(
+        UserPasskey.credential_id == verification.credential_id
+    ).first()
+    if existing:
+        return JSONResponse({"error": "Passkey already registered"}, status_code=409)
+
+    response_data = payload.get("response", {})
+    transports = response_data.get("transports")
+    passkey = UserPasskey(
+        user_id=user.id,
+        name=f"{user.username} passkey",
+        credential_id=verification.credential_id,
+        credential_public_key=verification.credential_public_key,
+        sign_count=verification.sign_count,
+        transports=",".join(transports) if transports else None,
+    )
+    db.add(passkey)
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@router.post("/auth/passkey/login/begin")
+async def passkey_login_begin(request: Request):
+    rp_id = _rp_id_from_request(request)
+    options = generate_authentication_options(
+        rp_id=rp_id,
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    _store_challenge(request, "passkey_login_challenge", options.challenge)
+    return JSONResponse(json.loads(options_to_json(options)))
+
+
+@router.post("/auth/passkey/login/finish")
+async def passkey_login_finish(request: Request, db: Session = Depends(get_db)):
+    challenge = _load_challenge(request, "passkey_login_challenge")
+    if not challenge:
+        return JSONResponse({"error": "Challenge expired"}, status_code=400)
+
+    payload = await request.json()
+    credential_id = base64url_to_bytes(payload.get("rawId") or payload.get("id", ""))
+    passkey = db.query(UserPasskey).filter(UserPasskey.credential_id == credential_id).first()
+    if not passkey:
+        return JSONResponse({"error": "Passkey not found"}, status_code=401)
+
+    try:
+        credential = _parse_authentication_credential(payload)
+        verification = verify_authentication_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=_rp_id_from_request(request),
+            expected_origin=_origin_from_request(request),
+            credential_public_key=passkey.credential_public_key,
+            credential_current_sign_count=passkey.sign_count,
+            require_user_verification=True,
+        )
+    except Exception as exc:
+        return JSONResponse({"error": f"Authentication failed: {exc}"}, status_code=401)
+
+    user = db.query(User).filter(User.id == passkey.user_id).first()
+    if not user:
+        return JSONResponse({"error": "User not found"}, status_code=401)
+
+    passkey.sign_count = verification.new_sign_count
+    passkey.last_used_at = datetime.utcnow()
+    db.commit()
+
+    request.session["user_id"] = user.id
+    request.session["username"] = user.username
+    return JSONResponse({"ok": True, "redirect": "/"})
+
+
+@router.post("/auth/passkeys/{passkey_id}/delete")
+async def delete_passkey(request: Request, passkey_id: int, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    passkey = db.query(UserPasskey).filter(
+        UserPasskey.id == passkey_id,
+        UserPasskey.user_id == user.id,
+    ).first()
+    if passkey:
+        db.delete(passkey)
+        db.commit()
     return RedirectResponse("/", status_code=302)
 
 
@@ -68,6 +262,12 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     if not user:
         return RedirectResponse("/login", status_code=302)
     devices = db.query(Device).order_by(Device.name).all()
+    user_passkeys = (
+        db.query(UserPasskey)
+        .filter(UserPasskey.user_id == user.id)
+        .order_by(UserPasskey.created_at.desc())
+        .all()
+    )
     recent_logs = (
         db.query(DeviceLog)
         .order_by(DeviceLog.created_at.desc())
@@ -76,7 +276,13 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     )
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "user": user, "devices": devices, "logs": recent_logs},
+        {
+            "request": request,
+            "user": user,
+            "devices": devices,
+            "logs": recent_logs,
+            "passkeys": user_passkeys,
+        },
     )
 
 

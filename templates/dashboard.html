@@ -1,10 +1,58 @@
-{% extends "base.html" %}
-{% block title %}Dashboard – Home Control{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Dashboard – Home Control{% endblock
+%} {% block content %}
 <div class="mb-8">
   <h1 class="text-2xl font-semibold text-slate-100">Dashboard</h1>
   <p class="text-slate-500 text-sm mt-1">Hoş geldin, {{ user.username }} 👋</p>
+</div>
+
+<div class="card rounded-xl p-5 mb-8">
+  <div
+    class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+  >
+    <div>
+      <h2 class="text-base font-semibold text-slate-100">Passkey Girişi</h2>
+      <p id="passkeyMessage" class="text-xs text-slate-500 mt-1">
+        Hesabına passkey ekleyerek şifresiz giriş yapabilirsin. Kayıtlı passkey:
+        {{ passkeys|length }}
+      </p>
+    </div>
+    <button
+      id="registerPasskeyBtn"
+      type="button"
+      class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors"
+    >
+      Passkey Ekle
+    </button>
+  </div>
+
+  {% if passkeys %}
+  <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+    {% for passkey in passkeys %}
+    <div
+      class="rounded-lg border border-white/10 bg-white/5 px-4 py-3 flex items-center justify-between gap-4"
+    >
+      <div>
+        <p class="text-sm text-slate-200 font-medium">{{ passkey.name }}</p>
+        <p class="text-xs text-slate-500">
+          {{ passkey.created_at.strftime('%d.%m.%Y %H:%M') }}
+        </p>
+      </div>
+      <form
+        method="post"
+        action="/auth/passkeys/{{ passkey.id }}/delete"
+        onsubmit="return confirm('Bu passkey silinsin mi?');"
+      >
+        <button
+          type="submit"
+          class="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-xs text-red-400 transition-colors"
+        >
+          Sil
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 
 <!-- Stats -->
@@ -20,7 +68,9 @@
   </div>
   <div class="card rounded-xl p-5">
     <p class="text-xs text-slate-500 mb-1">Pasif</p>
-    <p class="text-3xl font-bold text-slate-400">{{ devices|length - active_devices|length }}</p>
+    <p class="text-3xl font-bold text-slate-400">
+      {{ devices|length - active_devices|length }}
+    </p>
   </div>
   <div class="card rounded-xl p-5">
     <p class="text-xs text-slate-500 mb-1">Son İşlemler</p>
@@ -33,47 +83,58 @@
 <div class="mb-8">
   <div class="flex items-center justify-between mb-4">
     <h2 class="text-base font-semibold text-slate-200">Cihazlar</h2>
-    <a href="/devices" class="text-xs text-indigo-400 hover:text-indigo-300">Tümünü Yönet →</a>
+    <a href="/devices" class="text-xs text-indigo-400 hover:text-indigo-300"
+      >Tümünü Yönet →</a
+    >
   </div>
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
     {% for device in devices %}
-    <div class="card rounded-xl p-5 hover:border-indigo-500/40 transition-colors">
+    <div
+      class="card rounded-xl p-5 hover:border-indigo-500/40 transition-colors"
+    >
       <div class="flex items-start justify-between mb-3">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg {% if device.is_active %}bg-indigo-600/20{% else %}bg-slate-700/40{% endif %} flex items-center justify-center text-lg">
-            {% if device.icon == 'light' %}💡
-            {% elif device.icon == 'plug' %}🔌
-            {% elif device.icon == 'thermostat' %}🌡️
-            {% elif device.icon == 'camera' %}📷
-            {% elif device.icon == 'lock' %}🔒
-            {% else %}📡{% endif %}
+          <div
+            class="w-10 h-10 rounded-lg {% if device.is_active %}bg-indigo-600/20{% else %}bg-slate-700/40{% endif %} flex items-center justify-center text-lg"
+          >
+            {% if device.icon == 'light' %}💡 {% elif device.icon == 'plug' %}🔌
+            {% elif device.icon == 'thermostat' %}🌡️ {% elif device.icon ==
+            'camera' %}📷 {% elif device.icon == 'lock' %}🔒 {% else %}📡{%
+            endif %}
           </div>
           <div>
             <p class="text-sm font-medium text-slate-100">{{ device.name }}</p>
             <p class="text-xs text-slate-500">{{ device.ip_address }}</p>
           </div>
         </div>
-        <span class="tag {% if device.is_active %}status-on{% else %}status-off{% endif %}">
+        <span
+          class="tag {% if device.is_active %}status-on{% else %}status-off{% endif %}"
+        >
           {{ 'Aktif' if device.is_active else 'Pasif' }}
         </span>
       </div>
 
       {% if device.description %}
       <p class="text-xs text-slate-500 mb-3">{{ device.description }}</p>
-      {% endif %}
-
-      {% if device.actions %}
+      {% endif %} {% if device.actions %}
       <div class="flex flex-wrap gap-2">
         {% for action in device.actions[:4] %}
-        <form method="post" action="/devices/{{ device.id }}/actions/{{ action.id }}/trigger">
-          <button type="submit"
-            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-indigo-600/20 hover:text-indigo-300 border border-white/10 hover:border-indigo-500/40 text-xs text-slate-300 transition-all font-medium">
+        <form
+          method="post"
+          action="/devices/{{ device.id }}/actions/{{ action.id }}/trigger"
+        >
+          <button
+            type="submit"
+            class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-indigo-600/20 hover:text-indigo-300 border border-white/10 hover:border-indigo-500/40 text-xs text-slate-300 transition-all font-medium"
+          >
             {{ action.name }}
           </button>
         </form>
-        {% endfor %}
-        {% if device.actions|length > 4 %}
-        <a href="/devices/{{ device.id }}" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-500 hover:text-slate-300">
+        {% endfor %} {% if device.actions|length > 4 %}
+        <a
+          href="/devices/{{ device.id }}"
+          class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-500 hover:text-slate-300"
+        >
           +{{ device.actions|length - 4 }} daha
         </a>
         {% endif %}
@@ -83,7 +144,11 @@
       {% endif %}
 
       <div class="mt-4 pt-3 border-t border-white/5 flex justify-end">
-        <a href="/devices/{{ device.id }}" class="text-xs text-indigo-400 hover:text-indigo-300">Detaylar →</a>
+        <a
+          href="/devices/{{ device.id }}"
+          class="text-xs text-indigo-400 hover:text-indigo-300"
+          >Detaylar →</a
+        >
       </div>
     </div>
     {% endfor %}
@@ -93,7 +158,10 @@
 <div class="card rounded-xl p-12 text-center mb-8">
   <p class="text-4xl mb-3">📡</p>
   <p class="text-slate-400 mb-4">Henüz cihaz eklenmedi.</p>
-  <a href="/devices" class="inline-block px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">
+  <a
+    href="/devices"
+    class="inline-block px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+  >
     Cihaz Ekle
   </a>
 </div>
@@ -118,26 +186,31 @@
         {% for log in logs %}
         <tr class="border-b border-white/5 last:border-0 hover:bg-white/2">
           <td class="px-4 py-3 text-slate-300">
-            {% for d in devices if d.id == log.device_id %}{{ d.name }}{% endfor %}
+            {% for d in devices if d.id == log.device_id %}{{ d.name }}{% endfor
+            %}
           </td>
           <td class="px-4 py-3 text-slate-400">{{ log.action_name or '—' }}</td>
           <td class="px-4 py-3">
-            <span class="tag {% if log.triggered_by == 'api' %}bg-blue-500/10 text-blue-400 border border-blue-500/20{% elif log.triggered_by == 'mcp' %}bg-purple-500/10 text-purple-400 border border-purple-500/20{% else %}bg-slate-500/10 text-slate-400 border border-slate-500/20{% endif %}">
+            <span
+              class="tag {% if log.triggered_by == 'api' %}bg-blue-500/10 text-blue-400 border border-blue-500/20{% elif log.triggered_by == 'mcp' %}bg-purple-500/10 text-purple-400 border border-purple-500/20{% else %}bg-slate-500/10 text-slate-400 border border-slate-500/20{% endif %}"
+            >
               {{ log.triggered_by }}
             </span>
           </td>
           <td class="px-4 py-3">
             {% if log.error %}
-              <span class="tag status-off">HATA</span>
+            <span class="tag status-off">HATA</span>
             {% elif log.status_code and log.status_code < 300 %}
-              <span class="tag status-on">{{ log.status_code }}</span>
+            <span class="tag status-on">{{ log.status_code }}</span>
             {% elif log.status_code %}
-              <span class="tag status-off">{{ log.status_code }}</span>
+            <span class="tag status-off">{{ log.status_code }}</span>
             {% else %}
-              <span class="text-slate-600">—</span>
+            <span class="text-slate-600">—</span>
             {% endif %}
           </td>
-          <td class="px-4 py-3 text-slate-500">{{ log.created_at.strftime('%d.%m %H:%M') }}</td>
+          <td class="px-4 py-3 text-slate-500">
+            {{ log.created_at.strftime('%d.%m %H:%M') }}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -145,4 +218,95 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+  function base64urlToUint8Array(base64url) {
+    const padding = "=".repeat((4 - (base64url.length % 4)) % 4);
+    const base64 = (base64url + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(base64);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+    return bytes;
+  }
+
+  function uint8ArrayToBase64url(bytes) {
+    let str = "";
+    bytes.forEach((byte) => {
+      str += String.fromCharCode(byte);
+    });
+    return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  async function registerPasskey() {
+    const message = document.getElementById("passkeyMessage");
+    try {
+      const beginResp = await fetch("/auth/passkey/register/begin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const options = await beginResp.json();
+      if (!beginResp.ok) {
+        throw new Error(options.error || "Passkey challenge olusturulamadi.");
+      }
+
+      options.challenge = base64urlToUint8Array(options.challenge);
+      options.user.id = base64urlToUint8Array(options.user.id);
+      if (Array.isArray(options.excludeCredentials)) {
+        options.excludeCredentials = options.excludeCredentials.map((cred) => ({
+          ...cred,
+          id: base64urlToUint8Array(cred.id),
+        }));
+      }
+
+      const credential = await navigator.credentials.create({
+        publicKey: options,
+      });
+      if (!credential) {
+        throw new Error("Passkey kaydi iptal edildi.");
+      }
+
+      const attestationResponse = credential.response;
+      const finishPayload = {
+        id: credential.id,
+        rawId: uint8ArrayToBase64url(new Uint8Array(credential.rawId)),
+        type: credential.type,
+        response: {
+          attestationObject: uint8ArrayToBase64url(
+            new Uint8Array(attestationResponse.attestationObject),
+          ),
+          clientDataJSON: uint8ArrayToBase64url(
+            new Uint8Array(attestationResponse.clientDataJSON),
+          ),
+          transports: attestationResponse.getTransports
+            ? attestationResponse.getTransports()
+            : [],
+        },
+        clientExtensionResults: credential.getClientExtensionResults(),
+      };
+
+      const finishResp = await fetch("/auth/passkey/register/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finishPayload),
+      });
+      const finishData = await finishResp.json();
+      if (!finishResp.ok || !finishData.ok) {
+        throw new Error(finishData.error || "Passkey kaydi basarisiz.");
+      }
+
+      message.textContent =
+        "Passkey basariyla kaydedildi. Sayfa yenileniyor...";
+      message.className = "text-xs text-emerald-400 mt-1";
+      setTimeout(() => window.location.reload(), 700);
+    } catch (error) {
+      message.textContent = error.message || "Passkey kaydi basarisiz oldu.";
+      message.className = "text-xs text-red-400 mt-1";
+    }
+  }
+
+  const registerPasskeyBtn = document.getElementById("registerPasskeyBtn");
+  if (window.PublicKeyCredential && registerPasskeyBtn) {
+    registerPasskeyBtn.addEventListener("click", registerPasskey);
+  }
+</script>
 {% endblock %}

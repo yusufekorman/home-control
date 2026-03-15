@@ -5,7 +5,7 @@ Python tabanlı akıllı ev kontrol sunucusu. Web arayüzü, REST API ve MCP ser
 ## Özellikler
 
 - 🖥️ **Web Paneli** — Cihaz yönetimi, aksiyon tetikleme, log takibi
-- 🔐 **Kullanıcı Girişi** — Session tabanlı kimlik doğrulama
+- 🔐 **Kullanıcı Girişi** — Session tabanlı kimlik doğrulama + Passkey (WebAuthn)
 - 🔌 **Cihaz Yönetimi** — IP, Base URL, Auth header, icon desteği
 - ⚡ **Aksiyon Sistemi** — GET/POST/PUT/DELETE, custom body & headers
 - 📋 **Log Takibi** — Her tetiklemede kayıt
@@ -26,16 +26,22 @@ python main.py
 Sunucu `http://localhost:8000` adresinde başlar.
 
 **İlk kurulum girişi:** `admin` / _(başlangıçta terminalde üretilip gösterilen tek seferlik şifre)_  
-⚠️ Şifre ilk kurulumda bir kez gösterilir. İlk girişten sonra değiştir!
+⚠️ Şifre ilk kurulumda bir kez gösterilir. İlk girişten sonra Dashboard ekranından passkey ekleyip şifresiz girişe geçebilirsin.
 
 ## Çevre Değişkenleri
 
-| Değişken     | Varsayılan | Açıklama                   |
-| ------------ | ---------- | -------------------------- |
-| `HOST`       | `0.0.0.0`  | Dinlenecek arayüz          |
-| `PORT`       | `8000`     | Port                       |
-| `SECRET_KEY` | Rastgele   | Session şifreleme anahtarı |
-| `RELOAD`     | `true`     | Hot-reload (geliştirme)    |
+| Değişken          | Varsayılan | Açıklama                                      |
+| ----------------- | ---------- | --------------------------------------------- |
+| `HOST`            | `0.0.0.0`  | Dinlenecek arayüz                             |
+| `PORT`            | `8000`     | Port                                          |
+| `SECRET_KEY`      | Rastgele   | Session şifreleme anahtarı                    |
+| `RELOAD`          | `true`     | Hot-reload (geliştirme)                       |
+| `WEBAUTHN_RP_ID`  | Hostname   | Passkey RP ID (örn: `localhost`)              |
+| `WEBAUTHN_ORIGIN` | Otomatik   | Passkey origin (örn: `http://localhost:8000`) |
+
+### Passkey Notu
+
+WebAuthn passkey akışı güvenli context gerektirir. Geliştirmede `localhost` üzerinde çalışır; uzak erişimde HTTPS kullan.
 
 ## REST API
 
