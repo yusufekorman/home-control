@@ -52,7 +52,27 @@ def _load_challenge(request: Request, key: str) -> Optional[bytes]:
     return base64url_to_bytes(encoded)
 
 
+def _normalize_webauthn_payload(value):
+    key_map = {
+        "rawId": "raw_id",
+        "clientDataJSON": "client_data_json",
+        "attestationObject": "attestation_object",
+        "authenticatorData": "authenticator_data",
+        "userHandle": "user_handle",
+        "clientExtensionResults": "client_extension_results",
+    }
+    if isinstance(value, dict):
+        normalized = {}
+        for k, v in value.items():
+            normalized[key_map.get(k, k)] = _normalize_webauthn_payload(v)
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_webauthn_payload(item) for item in value]
+    return value
+
+
 def _parse_registration_credential(payload: dict):
+    payload = _normalize_webauthn_payload(payload)
     if hasattr(RegistrationCredential, "model_validate"):
         return RegistrationCredential.model_validate(payload)
     if hasattr(RegistrationCredential, "parse_obj"):
@@ -65,6 +85,7 @@ def _parse_registration_credential(payload: dict):
 
 
 def _parse_authentication_credential(payload: dict):
+    payload = _normalize_webauthn_payload(payload)
     if hasattr(AuthenticationCredential, "model_validate"):
         return AuthenticationCredential.model_validate(payload)
     if hasattr(AuthenticationCredential, "parse_obj"):
@@ -222,7 +243,7 @@ async def passkey_login_finish(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"error": "Challenge expired"}, status_code=400)
 
     payload = await request.json()
-    credential_id = base64url_to_bytes(payload.get("rawId") or payload.get("id", ""))
+    credential_id = base64url_to_bytes(payload.get("rawId") or payload.get("raw_id") or payload.get("id", ""))
     passkey = db.query(UserPasskey).filter(UserPasskey.credential_id == credential_id).first()
     if not passkey:
         return JSONResponse({"error": "Passkey not found"}, status_code=401)
