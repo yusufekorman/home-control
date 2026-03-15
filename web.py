@@ -81,7 +81,7 @@ def _parse_registration_credential(payload: dict):
         return RegistrationCredential.parse_raw(json.dumps(payload))
     if hasattr(RegistrationCredential, "from_dict"):
         return RegistrationCredential.from_dict(payload)
-    return RegistrationCredential(**payload)
+    return _instantiate_with_supported_kwargs(RegistrationCredential, payload)
 
 
 def _parse_authentication_credential(payload: dict):
@@ -94,13 +94,19 @@ def _parse_authentication_credential(payload: dict):
         return AuthenticationCredential.parse_raw(json.dumps(payload))
     if hasattr(AuthenticationCredential, "from_dict"):
         return AuthenticationCredential.from_dict(payload)
-    return AuthenticationCredential(**payload)
+    return _instantiate_with_supported_kwargs(AuthenticationCredential, payload)
 
 
 def _call_with_supported_kwargs(func, **kwargs):
     sig = inspect.signature(func)
     allowed = {k: v for k, v in kwargs.items() if k in sig.parameters}
     return func(**allowed)
+
+
+def _instantiate_with_supported_kwargs(cls, payload: dict):
+    sig = inspect.signature(cls)
+    accepted = {k: v for k, v in payload.items() if k in sig.parameters}
+    return cls(**accepted)
 
 
 # ─── Session helpers ───────────────────────────────────────────────────────────
