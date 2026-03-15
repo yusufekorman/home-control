@@ -141,6 +141,12 @@
       async function loginWithPasskey() {
         const help = document.getElementById("passkeyHelp");
         try {
+          if (!window.PublicKeyCredential || !window.isSecureContext) {
+            throw new Error(
+              "Bu tarayici/ortam passkey desteklemiyor. HTTPS veya localhost kullan.",
+            );
+          }
+
           const beginResp = await fetch("/auth/passkey/login/begin", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -209,12 +215,18 @@
       }
 
       const passkeyLoginBtn = document.getElementById("passkeyLoginBtn");
-      if (
-        window.PublicKeyCredential &&
-        passkeyLoginBtn &&
-        !passkeyLoginBtn.disabled
-      ) {
-        passkeyLoginBtn.addEventListener("click", loginWithPasskey);
+      const passkeyHelp = document.getElementById("passkeyHelp");
+      if (passkeyLoginBtn) {
+        if (!window.PublicKeyCredential || !window.isSecureContext) {
+          passkeyLoginBtn.disabled = true;
+          if (passkeyHelp) {
+            passkeyHelp.textContent =
+              "Passkey bu ortamda kullanilamiyor. HTTPS veya localhost kullan.";
+            passkeyHelp.className = "text-xs text-amber-400 mt-2 mb-5";
+          }
+        } else if (!passkeyLoginBtn.disabled) {
+          passkeyLoginBtn.addEventListener("click", loginWithPasskey);
+        }
       }
     </script>
   </body>
